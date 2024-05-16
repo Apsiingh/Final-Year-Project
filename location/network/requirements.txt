@@ -1,0 +1,6 @@
+scapy
+pandas
+tabulate
+tqdm
+matplotlib
+numpy
