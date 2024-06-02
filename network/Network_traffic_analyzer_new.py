@@ -40,8 +40,6 @@ def protocol_name(number):
     protocol_dict = {1: 'ICMP', 6: 'TCP', 17: 'UDP'}
     return protocol_dict.get(number, f"Unknown({number})")
 
-
-
 def analyze_packet_data(df):
     total_bandwidth = df["size"].sum()
     protocol_counts = df["protocol"].value_counts(normalize=True) * 100
@@ -85,7 +83,7 @@ def extract_packet_data_security(packets):
 
     return pd.DataFrame(packet_data)
 
-def detect_port_scanning(df,port_scan_threshold):
+def detect_port_scanning(df, port_scan_threshold):
     # Group packets by source IP and destination port
     port_scan_df = df.groupby(['src_ip', 'dst_port']).size().reset_index(name='count')
     
@@ -98,7 +96,6 @@ def detect_port_scanning(df,port_scan_threshold):
     
     if len(ip_addresses) > 0:
         logger.warning(f"Potential port scanning detected from IP addresses: {', '.join(ip_addresses)}")
-
 
 def print_results(total_bandwidth, protocol_counts_df, ip_communication_table, protocol_frequency, ip_communication_protocols):
     # Convert bandwidth to Mbps or Gbps
@@ -122,17 +119,38 @@ def plot_all_graphs(protocol_counts, ip_communication_protocols):
     plot_protocol_distribution(protocol_counts)
     plot_share_of_protocols_between_ips(ip_communication_protocols)
 
+def plot_protocol_distribution(protocol_counts_df):
+    colors = protocol_counts_df['Protocol'].apply(lambda x: 'blue' if x == 'TCP' else ('green' if x == 'UDP' else 'red'))
 
-def main(pcap_file,port_scan_threshold):
+    fig, ax = plt.subplots()
+    ax.bar(protocol_counts_df['Protocol'], protocol_counts_df['Count'], color=colors, alpha=0.7)
+    ax.set_xlabel('Protocol')
+    ax.set_ylabel('Count')
+    ax.set_title('Protocol Distribution')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_share_of_protocols_between_ips(ip_communication_protocols):
+    ip_communication_protocols['Pair'] = ip_communication_protocols['Source IP'] + ' -> ' + ip_communication_protocols['Destination IP']
+    grouped = ip_communication_protocols.groupby('Pair').apply(lambda x: x.set_index('Protocol')['Count']).unstack().fillna(0)
+    grouped.plot(kind='bar', stacked=True, figsize=(12, 8), colormap='viridis')
+    plt.xlabel('IP Communication Pair')
+    plt.ylabel('Count')
+    plt.title('Share of Protocols Between IPs')
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    plt.show()
+
+def main(pcap_file, port_scan_threshold):
     packets = read_pcap(pcap_file)
     df = extract_packet_data(packets)
     total_bandwidth, protocol_counts, ip_communication_table, protocol_frequency, ip_communication_protocols = analyze_packet_data(df)
-    #latency_df = calculate_latency(packets)
     print_results(total_bandwidth, protocol_counts, ip_communication_table, protocol_frequency, ip_communication_protocols)
-    df = extract_packet_data_security(packets)
-    
-    detect_port_scanning(df,port_scan_threshold)
-
+    plot_all_graphs(protocol_counts, ip_communication_protocols)
+    df_security = extract_packet_data_security(packets)
+    detect_port_scanning(df_security, port_scan_threshold)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -154,5 +172,4 @@ if __name__ == "__main__":
     else:
         port_scan_threshold = default_port_scan_threshold
     
-    main('new.pcap', 8000)
-
+    main(pcap_file, port_scan_threshold)
